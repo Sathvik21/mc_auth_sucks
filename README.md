@@ -75,6 +75,13 @@ Template if you only have a bare secret key, not a full URL:
 otpauth://totp/ACCOUNT_NAME?secret=YOUR_SECRET_KEY&issuer=Microsoft
 ```
 
+`ACCOUNT_NAME` is whatever the dialog in Step 1 showed next to
+**"Account name"** — for a Microsoft/Entra account it usually looks like
+`domain.com:you@domain.com`. Filled-in example:
+```
+otpauth://totp/contoso.com:jsmith@contoso.com?secret=abcd1234efgh5678&issuer=Microsoft
+```
+
 Verify it saved correctly:
 
 ```bash
@@ -148,6 +155,16 @@ Open PowerShell and run, pasting in what you copied:
 
 ```
 cmdkey /generic:totp-seed /user:totp /pass:"otpauth://totp/ACCOUNT_NAME?secret=YOUR_SECRET_KEY&issuer=Microsoft"
+```
+
+`ACCOUNT_NAME` is whatever the dialog in Step 1 showed next to **"Account
+name"** (next to the **Copy name** button) — for a Microsoft/Entra
+account it usually looks like `domain.com:you@domain.com`.
+`YOUR_SECRET_KEY` is what **Copy key** put on your clipboard. A filled-in
+example:
+
+```
+cmdkey /generic:totp-seed /user:totp /pass:"otpauth://totp/contoso.com:jsmith@contoso.com?secret=abcd1234efgh5678&issuer=Microsoft"
 ```
 
 Note: this puts the secret briefly in your PowerShell command history.
