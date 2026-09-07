@@ -6,10 +6,14 @@ Windows (PowerShell/AutoHotkey) versions included.
 
 Useful if your organization's MFA is normally tied to a phone-based
 authenticator app (Microsoft Authenticator, Google Authenticator, etc.)
-and you want to be able to sign in from your Mac even when your phone
+and you want to be able to sign in from your computer even when your phone
 isn't handy — as long as your MFA provider supports registering a
 generic/third-party authenticator app (most do, via an "I want to use a
 different app" or "can't scan the QR code" option during setup).
+
+**Read the [security trade-offs](#️-security-trade-offs--read-before-using-this)
+section before setting this up.** This is a convenience tool, not a
+security upgrade.
 
 ## How it works
 
@@ -21,31 +25,54 @@ Manager — encrypted, unlocked when you're logged in) and gives you a
 hotkey that reads it, computes the current code, and copies it to your
 clipboard.
 
+---
+
 ## macOS Setup
 
-### 1. Get your TOTP secret
+### Step 1: Get your TOTP secret
 
-When setting up a new authenticator method with your MFA provider, look
-for an option like **"I want to use a different authenticator app"** or
-**"Can't scan the QR code?"** — this reveals the setup key/URL instead of
-forcing you through a phone-only flow. It'll look like:
+1. Go to your MFA provider's security settings page. For Microsoft/Entra
+   accounts this is
+   [mysignins.microsoft.com/security-info](https://mysignins.microsoft.com/security-info).
+2. Click **Add sign-in method**.
+3. Pick the option named **Microsoft Authenticator** (or just
+   "Authenticator app" if that's what your provider calls it).
+4. It'll ask you to install the app — ignore that and look for a small
+   link near the bottom of the screen, worded something like **"I want
+   to use a different authenticator app."** Click it.
+   - If this link isn't there, your account is locked to the official
+     app only, and this whole approach won't work for that account.
+5. It now shows a QR code. Below it, click **"Can't scan the QR code?"**
+6. This reveals a **Secret key** (a short string of letters/numbers) and
+   sometimes a full **Setup URI** starting with `otpauth://`. Click
+   **Copy key** (or copy the full URI if one is shown).
+   - **This secret is shown once.** If you close this dialog before
+     finishing setup, you'll need to start over from step 2 to get a
+     new one — the old one stops working.
+7. **Leave this browser tab open** — you'll come back to it in Step 3.
+   Don't click Next yet.
 
-```
-otpauth://totp/YourService:you@example.com?secret=ABCD1234EFGH5678&issuer=YourService
-```
+### Step 2: Store the secret in Keychain
 
-Not every provider offers this — some restrict registration to their own
-app. If you don't see this option, this approach won't work for that
-account.
-
-### 2. Store the secret in Keychain
+Open Terminal:
 
 ```bash
 brew install oath-toolkit
+```
 
-# Run this, then paste the otpauth:// URL when prompted and press enter.
-# -s (silent) keeps it off your screen and out of shell history.
+Then run this — it will wait for input with no prompt shown:
+
+```bash
 read -rs OTPURL && security add-generic-password -a totp-seed -s totp -w "$OTPURL" && unset OTPURL
+```
+
+Paste the `otpauth://` URL you copied in Step 1 (build one yourself if
+you only got a bare secret key — see the template below), press Enter.
+Nothing will echo to the screen; that's expected.
+
+Template if you only have a bare secret key, not a full URL:
+```
+otpauth://totp/ACCOUNT_NAME?secret=YOUR_SECRET_KEY&issuer=Microsoft
 ```
 
 Verify it saved correctly:
@@ -56,23 +83,34 @@ security find-generic-password -a totp-seed -s totp -w
 
 Should print your `otpauth://` URL back.
 
-### 3. Set up the Raycast script
+### Step 3: Get a code and finish registration
 
 ```bash
 mkdir -p ~/raycast-scripts
 cp raycast-scripts/totp.sh ~/raycast-scripts/totp.sh
 chmod +x ~/raycast-scripts/totp.sh
+~/raycast-scripts/totp.sh
 ```
+
+This prints a 6-digit code and copies it to your clipboard. Go back to
+the browser tab from Step 1 **right away** — codes expire after 30
+seconds — paste the code into the verification box, and submit.
+
+**Use the code this script just printed, not a code from your phone's
+authenticator app.** If you already have a phone-based authenticator
+set up, its codes come from a *different* secret than the one you just
+registered here — they won't match.
+
+### Step 4: Set up the Raycast hotkey
 
 In Raycast: **Settings → Extensions → (+) → Add Script Directory**, and
 select `~/raycast-scripts`. The "TOTP Code" command should now appear.
-Assign it a hotkey (Settings → Extensions → find the command → click the
-hotkey field → press your combo). Avoid combos that collide with
-existing shortcuts like ⌘V.
 
-Test it: press the hotkey, then paste. You should get a 6-digit code
-that matches what your phone's authenticator app shows for the same
-account.
+Click the hotkey field next to it and press whatever combo you want
+(avoid ones already in use, like ⌘V).
+
+Test it: press the hotkey, then paste anywhere. You should get a fresh
+6-digit code each time, changing every 30 seconds.
 
 ### Optional: Hammerspoon auto-detect variant
 
@@ -82,31 +120,39 @@ instead of requiring a manual hotkey press. See the comments in that
 file for setup and for why you might *not* want this running all the
 time (it polls your active browser tab continuously).
 
+---
+
 ## Windows Setup
 
 Windows doesn't have Raycast or Keychain, so this version uses Windows
 Credential Manager for storage and a pure-PowerShell TOTP implementation
-(no external binary needed — `oathtool` isn't readily available on
-Windows, so the algorithm is implemented directly in `totp.ps1`).
+(no external binary needed — the algorithm is implemented directly in
+`totp.ps1`).
 
-### 1. Get your TOTP secret
+### Step 1: Get your TOTP secret
 
-Same as macOS — during MFA setup, look for **"I want to use a different
-authenticator app"** or **"Can't scan the QR code?"** to get an
-`otpauth://` URL instead of being forced into a phone-only flow.
+Same process as macOS above:
 
-### 2. Store the secret in Credential Manager
+1. Go to your provider's security page (e.g.
+   [mysignins.microsoft.com/security-info](https://mysignins.microsoft.com/security-info)).
+2. **Add sign-in method → Microsoft Authenticator**.
+3. Click **"I want to use a different authenticator app"** near the
+   bottom (not the QR scan prompt).
+4. Click **"Can't scan the QR code?"**
+5. Click **Copy key** to copy the secret to your clipboard.
+6. **Leave the browser tab open** on this screen — don't click Next yet.
 
-Open a terminal and run:
+### Step 2: Store the secret in Credential Manager
+
+Open PowerShell and run, pasting in what you copied:
 
 ```
-cmdkey /generic:totp-seed /user:totp /pass:"otpauth://totp/YourService:you@example.com?secret=ABCD1234EFGH5678&issuer=YourService"
+cmdkey /generic:totp-seed /user:totp /pass:"otpauth://totp/ACCOUNT_NAME?secret=YOUR_SECRET_KEY&issuer=Microsoft"
 ```
 
-Note: unlike the macOS `read -s` approach, this puts the URL briefly in
-your terminal's command history. Clear it afterward, or store the secret
-via the `CredentialManager` PowerShell module instead if you want a
-prompt that doesn't echo or get logged:
+Note: this puts the secret briefly in your PowerShell command history.
+Clear it afterward (`Clear-History`), or use the `CredentialManager`
+module instead for a prompt that doesn't echo or log it:
 
 ```powershell
 Install-Module CredentialManager -Scope CurrentUser
@@ -114,30 +160,58 @@ $secureUrl = Read-Host -AsSecureString "Paste otpauth:// URL"
 New-StoredCredential -Target "totp-seed" -UserName "totp" -SecurePassword $secureUrl -Persist LocalMachine
 ```
 
-### 3. Run the script
+### Step 3: Get a code and finish registration
+
+Download `totp.ps1` from this repo's `windows` folder to a known
+location (e.g. Downloads), then in PowerShell:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\totp.ps1
+cd C:\Users\YourName\Downloads
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\totp.ps1
 ```
 
-This copies the current 6-digit code to your clipboard and prints it.
-Compare it against your phone's authenticator app to confirm it matches.
-
-You may need to allow script execution once:
+If you get a script-execution error, run this once first, then retry:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-### 4. Bind it to a hotkey with AutoHotkey
+This prints a 6-digit code and copies it to your clipboard. Go back to
+the browser tab from Step 1 **immediately** — codes expire after 30
+seconds — paste it into the verification box, and submit.
+
+**Use the code the script just printed, not a code from your phone's
+authenticator app.** If you already have a phone-based authenticator
+set up, its codes come from a *different* secret than the one you just
+registered here — they won't match. The code that verifies this new
+method has to come from `totp.ps1`, freshly run, right before you
+submit.
+
+**Important:** don't reopen or restart the registration dialog partway
+through this process. Every time you go through "Add sign-in method"
+again, Microsoft generates a brand-new secret and the old one stops
+working. Do steps 1 through 3 as one continuous pass, in the same
+browser tab, without backing out.
+
+### Step 4: Set up the AutoHotkey hotkey
 
 1. Install [AutoHotkey v2](https://www.autohotkey.com/).
-2. Edit `windows/hotkey.ahk` if your `totp.ps1` path differs from the
-   default (same folder).
-3. Double-click `hotkey.ahk` to run it, or add a shortcut to it in
-   `shell:startup` so it loads automatically at login.
-4. Default hotkey is `Ctrl+Alt+T` — change it in the script if that
-   collides with something else on your system.
+2. Download `hotkey.ahk` from this repo's `windows` folder into the
+   **same folder** as `totp.ps1`.
+3. Open `hotkey.ahk` in Notepad if you want to change the hotkey — the
+   line to edit and a symbol reference table are right at the top.
+   Default is `Ctrl+Alt+T`.
+4. Right-click `hotkey.ahk` → **Run Script** (not double-click, which
+   can open the AutoHotkey app dashboard instead).
+5. You should see a green "H" icon appear in the system tray.
+6. Test it: press your hotkey anywhere, you should get a toast
+   notification with a fresh code.
+
+To make it run automatically at login: right-click `hotkey.ahk` →
+Create shortcut → move that shortcut into the Startup folder (press
+Win+R, type `shell:startup`, Enter, drop it there).
+
+---
 
 ## ⚠️ Security trade-offs — read before using this
 
