@@ -121,7 +121,7 @@ $keyBytes = ConvertFrom-Base32 -Base32String $secret
 # --- Compute TOTP (RFC 6238), default 30s step / 6 digits ---
 $timeStep = 30
 $digits = 6
-$unixTime = [long][double]::Parse((Get-Date -UFormat %s))
+$unixTime = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $counter = [long][Math]::Floor($unixTime / $timeStep)
 
 $counterBytes = [BitConverter]::GetBytes($counter)
