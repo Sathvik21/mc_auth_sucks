@@ -1,0 +1,66 @@
+-- Optional: Hammerspoon variant that watches for a login page in Chrome
+-- and auto-copies a TOTP code with a notification, instead of requiring
+-- a manual hotkey press.
+--
+-- This is NOT required if you're using the Raycast script — pick one or
+-- the other, or run both (they don't conflict).
+--
+-- Setup:
+--   1. brew install --cask hammerspoon
+--   2. Copy this file to ~/.hammerspoon/init.lua (drop the .example)
+--   3. Edit LOGIN_URL_PATTERN and the keychain account/service below to
+--      match your setup.
+--   4. Launch Hammerspoon, grant Accessibility + Automation permissions
+--      when prompted, then reload config from the menubar icon.
+--
+-- Trade-off to know before using this: it polls the frontmost browser
+-- tab's URL every 2 seconds while the browser is focused. That's a
+-- background process continuously reading what page you're on. If
+-- that's not something you want running all the time, use the Raycast
+-- script instead — it only runs when you press the hotkey.
+
+local KEYCHAIN_ACCOUNT = "totp-seed"
+local KEYCHAIN_SERVICE = "totp"
+local OATHTOOL_PATH = "/opt/homebrew/bin/oathtool" -- adjust if `which oathtool` differs
+local LOGIN_URL_PATTERN = "login%.microsoftonline%.com" -- change to match your provider
+local BROWSER_BUNDLE_ID = "com.google.Chrome" -- e.g. "com.apple.Safari" for Safari
+
+local lastFired = 0
+local COOLDOWN_SECONDS = 30
+
+hs.timer.doEvery(2, function()
+  local app = hs.application.frontmostApplication()
+  if not app or app:bundleID() ~= BROWSER_BUNDLE_ID then return end
+
+  local ok, url = hs.osascript.applescript(
+    'tell application "Google Chrome" to return URL of active tab of front window')
+  if not ok or not url then return end
+  if not url:match(LOGIN_URL_PATTERN) then return end
+  if os.time() - lastFired < COOLDOWN_SECONDS then return end
+  lastFired = os.time()
+
+  local seedUrl = hs.execute(
+    'security find-generic-password -a "' .. KEYCHAIN_ACCOUNT ..
+    '" -s "' .. KEYCHAIN_SERVICE .. '" -w', true)
+  seedUrl = (seedUrl or ""):gsub("%s+$", "")
+  if seedUrl == "" then
+    hs.alert.show("No keychain entry found")
+    return
+  end
+
+  local secret = seedUrl:match("[?&]secret=([^&]+)")
+  if not secret then
+    hs.alert.show("Could not parse secret from stored URL")
+    return
+  end
+
+  local out = hs.execute(OATHTOOL_PATH .. ' --totp -b "' .. secret .. '"', true)
+  local code = (out or ""):gsub("%s+", "")
+  if code == "" then
+    hs.alert.show("oathtool failed — check OATHTOOL_PATH")
+    return
+  end
+
+  hs.pasteboard.setContents(code)
+  hs.notify.new({title = "TOTP code", informativeText = code .. " — copied"}):send()
+end)
