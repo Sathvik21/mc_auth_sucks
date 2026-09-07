@@ -3,6 +3,7 @@
 A hotkey that generates your TOTP (6-digit authenticator app) code on your
 Mac, without needing your phone.
 
+Microsoft Auth is lowkey annoying if you're trying to lock in without using your phone, but all sign-ins need your phone because Microsoft Auth doesn't have a way to add a passkey on your laptop. 
 Useful if your organization's MFA is normally tied to a phone-based
 authenticator app (Microsoft Authenticator, Google Authenticator, etc.)
 and you want to be able to sign in from your Mac even when your phone
